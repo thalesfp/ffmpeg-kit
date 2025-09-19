@@ -1,0 +1,292 @@
+name: Release Build and Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 6.1.0)'
+        required: true
+        type: string
+      build_type:
+        description: 'Build type'
+        required: true
+        type: choice
+        options:
+          - main
+          - lts
+      package_variant:
+        description: 'Package variant'
+        required: true
+        type: choice
+        options:
+          - min
+          - min-gpl
+          - https
+          - https-gpl
+          - audio
+          - video
+          - full
+          - full-gpl
+
+jobs:
+  build-ios:
+    name: Build iOS xcframeworks
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: brew install autoconf automake libtool pkg-config curl git cmake nasm doxygen gperf texinfo yasm bison autogen wget gettext meson ninja ragel groff gtk-doc-tools libtasn1
+
+      - name: Set up Xcode
+        run: echo "export DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" > ~/.xcode.for.ffmpeg.kit.sh
+
+      - name: Build iOS xcframeworks
+        run: |
+          BUILD_OPTIONS="--xcframework --target=17.0 --disable-arm64e"
+          if [ "${{ inputs.build_type }}" = "lts" ]; then
+            BUILD_OPTIONS="--lts $BUILD_OPTIONS"
+          fi
+
+          case "${{ inputs.package_variant }}" in
+            min)
+              ./ios.sh $BUILD_OPTIONS
+              ;;
+            min-gpl)
+              ./ios.sh $BUILD_OPTIONS --enable-gpl
+              ;;
+            https)
+              ./ios.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls
+              ;;
+            https-gpl)
+              ./ios.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls --enable-gpl
+              ;;
+            audio)
+              ./ios.sh $BUILD_OPTIONS --enable-lame --enable-libvorbis --enable-libopus --enable-libspeex --enable-libsoxr
+              ;;
+            video)
+              ./ios.sh $BUILD_OPTIONS --enable-libvpx --enable-libx264 --enable-libx265 --enable-libxvid
+              ;;
+            full)
+              ./ios.sh $BUILD_OPTIONS --full
+              ;;
+            full-gpl)
+              ./ios.sh $BUILD_OPTIONS --full --enable-gpl
+              ;;
+          esac
+
+      - name: Create xcframework archives
+        run: |
+          cd prebuilt/bundle-apple-xcframework-ios
+          for framework in *.xcframework; do
+            zip -r "${framework%.xcframework}.xcframework.zip" "$framework"
+            echo "Created ${framework%.xcframework}.xcframework.zip"
+          done
+
+      - name: Calculate checksums
+        run: |
+          cd prebuilt/bundle-apple-xcframework-ios
+          for zip in *.zip; do
+            checksum=$(swift package compute-checksum "$zip")
+            echo "$zip: $checksum" >> checksums.txt
+          done
+          cat checksums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-xcframeworks-${{ inputs.package_variant }}
+          path: prebuilt/bundle-apple-xcframework-ios/*.zip
+
+  build-macos:
+    name: Build macOS xcframeworks
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: brew install autoconf automake libtool pkg-config curl git cmake nasm doxygen gperf texinfo yasm bison autogen wget gettext meson ninja ragel groff gtk-doc-tools libtasn1
+
+      - name: Set up Xcode
+        run: echo "export DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" > ~/.xcode.for.ffmpeg.kit.sh
+
+      - name: Build macOS xcframeworks
+        run: |
+          BUILD_OPTIONS="--xcframework"
+          if [ "${{ inputs.build_type }}" = "lts" ]; then
+            BUILD_OPTIONS="--lts $BUILD_OPTIONS"
+          fi
+
+          case "${{ inputs.package_variant }}" in
+            min)
+              ./macos.sh $BUILD_OPTIONS
+              ;;
+            min-gpl)
+              ./macos.sh $BUILD_OPTIONS --enable-gpl
+              ;;
+            https)
+              ./macos.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls
+              ;;
+            https-gpl)
+              ./macos.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls --enable-gpl
+              ;;
+            audio)
+              ./macos.sh $BUILD_OPTIONS --enable-lame --enable-libvorbis --enable-libopus --enable-libspeex --enable-libsoxr
+              ;;
+            video)
+              ./macos.sh $BUILD_OPTIONS --enable-libvpx --enable-libx264 --enable-libx265 --enable-libxvid
+              ;;
+            full)
+              ./macos.sh $BUILD_OPTIONS --full
+              ;;
+            full-gpl)
+              ./macos.sh $BUILD_OPTIONS --full --enable-gpl
+              ;;
+          esac
+
+      - name: Create xcframework archives
+        run: |
+          cd prebuilt/bundle-apple-xcframework-macos
+          for framework in *.xcframework; do
+            zip -r "${framework%.xcframework}.xcframework.zip" "$framework"
+            echo "Created ${framework%.xcframework}.xcframework.zip"
+          done
+
+      - name: Calculate checksums
+        run: |
+          cd prebuilt/bundle-apple-xcframework-macos
+          for zip in *.zip; do
+            checksum=$(swift package compute-checksum "$zip")
+            echo "$zip: $checksum" >> checksums.txt
+          done
+          cat checksums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-xcframeworks-${{ inputs.package_variant }}
+          path: prebuilt/bundle-apple-xcframework-macos/*.zip
+
+  build-tvos:
+    name: Build tvOS xcframeworks
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: brew install autoconf automake libtool pkg-config curl git cmake nasm doxygen gperf texinfo yasm bison autogen wget gettext meson ninja ragel groff gtk-doc-tools libtasn1
+
+      - name: Set up Xcode
+        run: echo "export DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" > ~/.xcode.for.ffmpeg.kit.sh
+
+      - name: Build tvOS xcframeworks
+        run: |
+          BUILD_OPTIONS="--xcframework"
+          if [ "${{ inputs.build_type }}" = "lts" ]; then
+            BUILD_OPTIONS="--lts $BUILD_OPTIONS"
+          fi
+
+          case "${{ inputs.package_variant }}" in
+            min)
+              ./tvos.sh $BUILD_OPTIONS
+              ;;
+            min-gpl)
+              ./tvos.sh $BUILD_OPTIONS --enable-gpl
+              ;;
+            https)
+              ./tvos.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls
+              ;;
+            https-gpl)
+              ./tvos.sh $BUILD_OPTIONS --enable-gmp --enable-gnutls --enable-gpl
+              ;;
+            audio)
+              ./tvos.sh $BUILD_OPTIONS --enable-lame --enable-libvorbis --enable-libopus --enable-libspeex --enable-libsoxr
+              ;;
+            video)
+              ./tvos.sh $BUILD_OPTIONS --enable-libvpx --enable-libx264 --enable-libx265 --enable-libxvid
+              ;;
+            full)
+              ./tvos.sh $BUILD_OPTIONS --full
+              ;;
+            full-gpl)
+              ./tvos.sh $BUILD_OPTIONS --full --enable-gpl
+              ;;
+          esac
+
+      - name: Create xcframework archives
+        run: |
+          cd prebuilt/bundle-apple-xcframework-tvos
+          for framework in *.xcframework; do
+            zip -r "${framework%.xcframework}.xcframework.zip" "$framework"
+            echo "Created ${framework%.xcframework}.xcframework.zip"
+          done
+
+      - name: Calculate checksums
+        run: |
+          cd prebuilt/bundle-apple-xcframework-tvos
+          for zip in *.zip; do
+            checksum=$(swift package compute-checksum "$zip")
+            echo "$zip: $checksum" >> checksums.txt
+          done
+          cat checksums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: tvos-xcframeworks-${{ inputs.package_variant }}
+          path: prebuilt/bundle-apple-xcframework-tvos/*.zip
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-ios, build-macos, build-tvos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create release tag
+        run: |
+          TAG="v${{ inputs.version }}"
+          if [ "${{ inputs.build_type }}" = "lts" ]; then
+            TAG="${TAG}.LTS"
+          fi
+          TAG="${TAG}-${{ inputs.package_variant }}"
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: FFmpegKit ${{ inputs.version }} ${{ inputs.build_type }} - ${{ inputs.package_variant }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*.zip
+          body: |
+            ## FFmpegKit ${{ inputs.version }} Release
+
+            **Build Type:** ${{ inputs.build_type }}
+            **Package Variant:** ${{ inputs.package_variant }}
+
+            ### Included Platforms
+            - iOS (xcframeworks) - Minimum iOS 17.0
+            - macOS (xcframeworks) - Minimum macOS 10.15
+            - tvOS (xcframeworks) - Minimum tvOS 11.0
+
+            ### Swift Package Manager Integration
+
+            Add to your Package.swift:
+            ```swift
+            .package(url: "https://github.com/thalesfp/ffmpeg-kit.git", from: "${{ inputs.version }}")
+            ```
+
+            ### Checksums
+            See the checksums.txt file in each artifact for verification.
+
+            ### Notes
+            - arm64e architecture is disabled for iOS builds
+            - All frameworks are built as xcframeworks for better platform compatibility
